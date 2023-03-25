@@ -3,6 +3,7 @@
 
 ### 具体步骤：
 依赖远程服务：RemoteRegistry
+
 Windows Server 机器默认没有开启该服务可以考虑远程开启该服务
 
 
