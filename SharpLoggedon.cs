@@ -3,9 +3,13 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
+using System.ServiceProcess;
+
 
 class SharpLoggedon
 {
+    
+
     [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool ConvertStringSidToSid(string sidString, out IntPtr sid);
 
@@ -27,10 +31,19 @@ class SharpLoggedon
         [Out] StringBuilder lpSecurityDescriptor,
         out long lpftLastWriteTime);
 
+    
+
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern int RegConnectRegistry(string machineName, IntPtr hKey, out IntPtr phkResult);
 
+    
 
+
+    
+
+
+
+    
     static DateTime GetRegistryKeyLastWriteTime(string machineName, RegistryHive hive, string subKey)
     {
         using (RegistryKey key = RegistryKey.OpenRemoteBaseKey(hive, machineName).OpenSubKey(subKey))
@@ -57,58 +70,63 @@ class SharpLoggedon
     }
     public static void GetLoggedOnUsers(string machineName)
     {
-        Console.WriteLine("Users logged on:"+ machineName);
-        RegistryKey baseKey = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users, machineName);
-
-        foreach (string keyname in baseKey.GetSubKeyNames())
+        try
         {
-            if (keyname.StartsWith("S-1-5-") && !keyname.EndsWith("_Classes"))
+            Console.WriteLine("Users logged on:" + machineName);
+            RegistryKey baseKey = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users, machineName);
+
+            foreach (string keyname in baseKey.GetSubKeyNames())
             {
-                try
+                if (!(keyname.StartsWith("S-1-5-") && !keyname.EndsWith("_Classes"))) continue;
+
+                IntPtr sid_ptr;
+                if (!ConvertStringSidToSid(keyname, out sid_ptr)) continue;
+
+                uint cchName = 0, cchReferencedDomainName = 0;
+                int peUse = 0;
+                LookupAccountSid(machineName, sid_ptr, null, ref cchName, null, ref cchReferencedDomainName, out peUse);
+
+                char[] name = new char[cchName];
+                char[] referencedDomainName = new char[cchReferencedDomainName];
+
+                if (LookupAccountSid(machineName, sid_ptr, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out peUse))
                 {
-                    IntPtr sid_ptr;
-                    ConvertStringSidToSid(keyname, out sid_ptr);
-
-                    uint cchName = 0, cchReferencedDomainName = 0;
-                    int peUse = 0;
-                    LookupAccountSid(machineName, sid_ptr, null, ref cchName, null, ref cchReferencedDomainName, out peUse);
-
-                    char[] name = new char[cchName];
-                    char[] referencedDomainName = new char[cchReferencedDomainName];
-
-                    if (LookupAccountSid(machineName, sid_ptr, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out peUse))
+                    string username = new string(name).Substring(0, (int)cchName);
+                    string domainname = new string(referencedDomainName).Substring(0, (int)cchReferencedDomainName);
+                    if (!domainname.ToLower().Contains("NT AUTHORITY".ToLower()))
                     {
-                        string username = new string(name).Substring(0, (int)cchName);
-                        string domainname = new string(referencedDomainName).Substring(0, (int)cchReferencedDomainName);
-                        if (!domainname.ToLower().Contains("NT AUTHORITY".ToLower()))
+                        using (RegistryKey envKey = baseKey.OpenSubKey(keyname + @"\Environment"))
                         {
-                            
-                            RegistryKey envKey = RegistryKey.OpenRemoteBaseKey(RegistryHive.Users, machineName).OpenSubKey(keyname + @"\Environment");
                             if (envKey != null)
                             {
-                                
                                 RegistryHive hive = RegistryHive.Users;
-                                string subKey = keyname+ @"\Environment";
+                                string subKey = keyname + @"\Environment";
                                 string valueName = "Path";
 
                                 DateTime lastWriteTime = GetRegistryKeyLastWriteTime(machineName, hive, subKey);
                                 Console.WriteLine("Name: " + domainname + "\\" + username + "  logged: " + lastWriteTime);
-                                envKey.Close();
                             }
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine("LookupAccountSid failed: " + Marshal.GetLastWin32Error());
-                    }
-
-                    Marshal.FreeHGlobal(sid_ptr);
                 }
-                catch (Exception ex)
+                else
                 {
-                    Console.WriteLine("Error: " + ex.Message);
+                    Console.WriteLine("LookupAccountSid failed: " + Marshal.GetLastWin32Error());
                 }
+
+                Marshal.FreeHGlobal(sid_ptr);
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error: " + ex.Message);
+            Console.WriteLine("[-] Failed to retrieve the data.\n"); 
+            Console.WriteLine("[i] Please execute the following commands in the command line :");
+            string RemoteRegistry = "RemoteRegistry";
+
+            string Command = $"> sc.exe \\\\{machineName} config {RemoteRegistry} start= demand\n";
+            Command += $"> sc.exe \\\\{machineName} start {RemoteRegistry}";
+            Console.WriteLine($"{Command}");
         }
     }
     static void Main(string[] args)
