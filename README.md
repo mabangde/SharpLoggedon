@@ -60,9 +60,9 @@ LSTATUS RegQueryInfoKey(
 
 
 使用bflat 编译全平台可用版本：
- bflat build SharpLoggedon.cs
+ `bflat build SharpLoggedon.cs`
 
-https://github.com/bflattened/bflat
+[1] https://github.com/bflattened/bflat
 
 
 
