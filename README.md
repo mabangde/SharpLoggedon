@@ -1,3 +1,6 @@
+## PsLoggedon 实现
+该方法普通用户即可获取远程登录过用户
+
 ### 具体步骤：
 依赖远程服务：RemoteRegistry
 
