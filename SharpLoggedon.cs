@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Win32.SafeHandles;
 using System.ServiceProcess;
 
+namespace SharpLoggedon;
 
 class SharpLoggedon
 {
@@ -35,12 +36,6 @@ class SharpLoggedon
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern int RegConnectRegistry(string machineName, IntPtr hKey, out IntPtr phkResult);
-
-    
-
-
-    
-
 
 
     
@@ -119,14 +114,23 @@ class SharpLoggedon
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error: " + ex.Message);
-            Console.WriteLine("[-] Failed to retrieve the data.\n"); 
-            Console.WriteLine("[i] Please execute the following commands in the command line :");
-            string RemoteRegistry = "RemoteRegistry";
+            
 
-            string Command = $"> sc.exe \\\\{machineName} config {RemoteRegistry} start= demand\n";
-            Command += $"> sc.exe \\\\{machineName} start {RemoteRegistry}";
-            Console.WriteLine($"{Command}");
+            if (Marshal.GetLastWin32Error() != 0)
+            {
+
+                Console.WriteLine("Error: " + ex.Message);
+            }
+            else {
+                Console.WriteLine("Error: " + ex.Message);
+                Console.WriteLine("[i] Please execute the following commands in the command line : ");
+                string RemoteRegistry = "RemoteRegistry";
+                string Command = $"\t> sc.exe \\\\{machineName} config {RemoteRegistry} start= demand\n";
+                //Command += $"\t> sc.exe \\\\{machineName} start {RemoteRegistry}";
+                Console.WriteLine($"{Command}");
+                
+            }
+
         }
     }
     static void Main(string[] args)
